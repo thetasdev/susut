@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: v
+        name: Tag must match Cargo.toml and CHANGELOG
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          crate=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          [ "$version" = "$crate" ] || { echo "tag $version != Cargo.toml $crate"; exit 1; }
+          grep -q "^## \[$version\]" CHANGELOG.md || { echo "CHANGELOG.md has no section for $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build (${{ matrix.target }})
+    needs: check-tag
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl,  os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
+          - { target: x86_64-unknown-linux-gnu,   os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu,  os: ubuntu-24.04-arm }
+          - { target: x86_64-apple-darwin,        os: macos-latest }
+          - { target: aarch64-apple-darwin,       os: macos-latest }
+          - { target: x86_64-pc-windows-msvc,     os: windows-latest }
+          - { target: aarch64-pc-windows-msvc,    os: windows-11-arm }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install toolchain
+        run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+      - name: Install musl-tools and nasm (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools nasm
+      - name: Install nasm (macOS)
+        if: runner.os == 'macOS'
+        run: brew install nasm
+      - name: Install nasm (Windows x86_64)
+        if: runner.os == 'Windows' && runner.arch == 'X64'
+        run: choco install nasm -y --no-progress
+      - name: Add nasm to PATH (Windows x86_64)
+        if: runner.os == 'Windows' && runner.arch == 'X64'
+        shell: bash
+        run: echo "C:\\Program Files\\NASM" >> "$GITHUB_PATH"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Smoke test (native targets)
+        if: matrix.target != 'x86_64-apple-darwin'
+        shell: bash
+        run: |
+          ext=""; [ "$RUNNER_OS" = "Windows" ] && ext=".exe"
+          ./target/${{ matrix.target }}/release/susut$ext --version
+      - name: Package
+        shell: bash
+        run: |
+          name="susut-v${{ needs.check-tag.outputs.version }}-${{ matrix.target }}"
+          mkdir "$name"
+          cp LICENSE-MIT LICENSE-APACHE README.md CHANGELOG.md "$name/"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/susut.exe" "$name/"
+            7z a "$name.zip" "$name" > /dev/null
+            echo "ASSET=$name.zip" >> "$GITHUB_ENV"
+          else
+            cp "target/${{ matrix.target }}/release/susut" "$name/"
+            tar czf "$name.tar.gz" "$name"
+            echo "ASSET=$name.tar.gz" >> "$GITHUB_ENV"
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-${{ matrix.target }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+
+  release:
+    name: draft GitHub release
+    needs: [check-tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum susut-* > SHA256SUMS && cat SHA256SUMS
+      - name: Release notes from CHANGELOG
+        run: |
+          v="${{ needs.check-tag.outputs.version }}"
+          awk -v h="## [$v]" 'index($0,h)==1{f=1;next} /^## \[/{f=0} f' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "empty release notes"; exit 1; }
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --draft --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md

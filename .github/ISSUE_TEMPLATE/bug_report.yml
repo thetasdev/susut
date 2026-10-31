@@ -1,0 +1,42 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problem? Do **not** file it here; see SECURITY.md.
+        Do not upload photos of people or identity documents.
+  - type: input
+    id: version
+    attributes:
+      label: susut version
+      description: Output of `susut --version`
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and architecture
+      placeholder: macOS 15 arm64 / Ubuntu 24.04 x86_64 / Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and output
+      description: The exact command and what it printed
+      render: console
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: About the input image
+      description: Format, dimensions, size. Attach a sample only if it is safe to share.
