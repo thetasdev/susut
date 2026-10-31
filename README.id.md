@@ -48,7 +48,7 @@ Binary siap pakai dilampirkan di setiap
 | Linux (static, musl: jalan di distro apa pun) | x86_64, aarch64 |
 | Linux (glibc, dibangun di Ubuntu 24.04) | x86_64, aarch64 |
 | macOS | x86_64 (Intel), arm64 (Apple silicon) |
-| Windows | x86_64, arm64 |
+| Windows | x86_64, arm64 (encode AVIF lebih lambat: tanpa assembly SIMD) |
 
 Formula Homebrew direncanakan.
 
@@ -144,9 +144,9 @@ Ketiganya memanggil encoder yang sama, jadi file hasilnya identik (WebP, AVIF, P
 identik (JPEG); yang beda hanya waktu. Keunggulan susut ada di batch paralel; untuk satu file,
 AVIF, dan PNG hasilnya seri, dan selisih antar-run sekitar 10%. jpegoptim sekitar empat kali lebih
 cepat per JPEG hanya karena mengompres ulang tanpa decode (dan hasilnya 43% lebih besar).
-Pada 11 foto asli NASA gambarnya sama, kecuali bahwa me-resize file 45 megapiksel lebih
-lambat di susut dibanding rimage (sekitar 1,7 kali); itu kekurangan yang sudah diketahui.
-Ukuran binary susut 3,9 MB (macOS arm64; 4,0 MB untuk musl static), dibanding 6,3 MB untuk
+Pada 11 foto asli NASA gambarnya sama, dan me-resize file 45 megapiksel pun paling cepat
+dari ketiganya (0,82 dtk dibanding 0,94 dtk untuk rimage dan 1,71 dtk untuk caesiumclt).
+Ukuran binary susut 5,9 MB (macOS arm64; 6,0 MB untuk musl static), dibanding 6,3 MB untuk
 caesiumclt dan 9,0 MB untuk rimage dengan fitur bawaannya. Tabel memakai gambar sintetis; metode, batasan,
 dan skrip yang bisa diulang ada di [docs/benchmarks.md](docs/benchmarks.md) (bahasa Inggris).
 

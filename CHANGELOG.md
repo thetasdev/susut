@@ -19,4 +19,6 @@ First public release.
 - Metadata stripping (EXIF, including GPS), with EXIF orientation applied.
 - Runtime messages in English (default) or Indonesian via `--lang id` or `SUSUT_LANG=id`.
 - Prebuilt binaries for Linux (musl and glibc, x86_64/aarch64), macOS (x86_64/arm64) and Windows (x86_64/arm64).
+- Resizing uses the SIMD Lanczos3 filter of `fast_image_resize` (about 1.7 times faster on 45 MP photos; binary grows by about 2 MB).
+- Windows ARM64 binaries are built without rav1e's SIMD assembly (MSVC cannot assemble it), so AVIF encoding is slower there.
 - Library crate (`susut`) with the compression logic; the CLI is a thin front end.

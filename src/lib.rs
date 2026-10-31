@@ -9,7 +9,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow, bail};
-use image::{DynamicImage, GenericImageView, ImageDecoder, ImageReader, imageops::FilterType};
+use fast_image_resize::{
+    FilterType, MulDiv, PixelType, ResizeAlg, ResizeOptions, Resizer, images::Image,
+};
+use image::{DynamicImage, GenericImageView, ImageDecoder, ImageReader};
 
 pub use message::{Lang, Msg};
 
@@ -191,7 +194,7 @@ pub fn process(opts: &Options, input: &Path, dest: &Destination) -> Result<Outco
         );
     }
 
-    img = fit(img, opts);
+    img = fit(img, opts)?;
 
     let enc = match opts.max_size {
         None => {
@@ -315,15 +318,41 @@ pub fn scale_factor(w: u32, h: u32, opts: &Options) -> f64 {
     candidates.into_iter().flatten().fold(1.0, f64::min)
 }
 
-pub fn fit(img: DynamicImage, opts: &Options) -> DynamicImage {
+pub fn fit(img: DynamicImage, opts: &Options) -> Result<DynamicImage> {
     let (w, h) = img.dimensions();
     let s = scale_factor(w, h, opts);
     if s >= 1.0 {
-        return img;
+        return Ok(img);
     }
     let nw = ((w as f64 * s).round() as u32).max(1);
     let nh = ((h as f64 * s).round() as u32).max(1);
-    img.resize_exact(nw, nh, FilterType::Lanczos3)
+    resize(&img, nw, nh)
+}
+
+/// Lanczos3 resize with SIMD (fast_image_resize). The result is 8-bit, like every encoder input.
+/// Alpha is premultiplied around the resize so transparent edges do not bleed.
+pub fn resize(img: &DynamicImage, w: u32, h: u32) -> Result<DynamicImage> {
+    let (sw, sh) = img.dimensions();
+    let options = ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Lanczos3));
+    let mut resizer = Resizer::new();
+    if img.color().has_alpha() {
+        let mut src = Image::from_vec_u8(sw, sh, img.to_rgba8().into_raw(), PixelType::U8x4)?;
+        let mut dst = Image::new(w, h, PixelType::U8x4);
+        let mul_div = MulDiv::default();
+        mul_div.multiply_alpha_inplace(&mut src)?;
+        resizer.resize(&src, &mut dst, &options)?;
+        mul_div.divide_alpha_inplace(&mut dst)?;
+        let buf = image::RgbaImage::from_raw(w, h, dst.into_vec())
+            .ok_or_else(|| anyhow!("resize buffer size mismatch"))?;
+        Ok(DynamicImage::ImageRgba8(buf))
+    } else {
+        let src = Image::from_vec_u8(sw, sh, img.to_rgb8().into_raw(), PixelType::U8x3)?;
+        let mut dst = Image::new(w, h, PixelType::U8x3);
+        resizer.resize(&src, &mut dst, &options)?;
+        let buf = image::RgbImage::from_raw(w, h, dst.into_vec())
+            .ok_or_else(|| anyhow!("resize buffer size mismatch"))?;
+        Ok(DynamicImage::ImageRgb8(buf))
+    }
 }
 
 /// Find the highest quality that fits `target`; if even `min_quality` does not fit, downscale.
@@ -395,7 +424,7 @@ pub fn encode_to_target(
         if nw < 16 || nh < 16 {
             break;
         }
-        img = img.resize_exact(nw, nh, FilterType::Lanczos3);
+        img = resize(&img, nw, nh)?;
     }
 
     let (bytes, quality) = last.ok_or_else(|| anyhow!(Msg::TargetFailed.render(lang)))?;

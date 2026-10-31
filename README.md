@@ -49,7 +49,7 @@ Prebuilt binaries are attached to each
 | Linux (static, musl: runs on any distro) | x86_64, aarch64 |
 | Linux (glibc, built on Ubuntu 24.04) | x86_64, aarch64 |
 | macOS | x86_64 (Intel), arm64 (Apple silicon) |
-| Windows | x86_64, arm64 |
+| Windows | x86_64, arm64 (AVIF encoding is slower: no SIMD assembly) |
 
 A Homebrew formula is planned.
 
@@ -145,8 +145,9 @@ All of them call the same encoders, so output files are identical (WebP, AVIF, P
 (JPEG); only the time differs. susut's edge is parallel batches; for a single file or for
 AVIF and PNG it is a tie, and run-to-run noise is around 10%. jpegoptim is about four times faster per
 JPEG only because it recompresses without decoding (and writes 43% larger files).
-On 11 real NASA photos the picture is the same, except that resizing 45-megapixel files
-is slower in susut than in rimage (about 1.7 times); that is a known gap. The binary is 3.9 MB (macOS arm64, 4.0 MB static musl) against 6.3 MB for caesiumclt and
+On 11 real NASA photos the picture is the same, and resizing 45-megapixel files is the
+fastest of the three too (0.82 s against 0.94 s for rimage and 1.71 s for caesiumclt). The binary is
+5.9 MB (macOS arm64; 6.0 MB static musl) against 6.3 MB for caesiumclt and
 9.0 MB for rimage with its default features. The table uses synthetic images; method, caveats and a
 reproducible script are in [docs/benchmarks.md](docs/benchmarks.md).
 

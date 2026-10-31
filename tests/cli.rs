@@ -362,3 +362,34 @@ fn size_target_works_for_webp_and_png() {
         assert!(size <= 20 * 1024, "{fmt}: {size} bytes");
     }
 }
+
+#[test]
+fn resize_keeps_colors_at_transparent_edges() {
+    let dir = TempDir::new().unwrap();
+    let input = dir.path().join("edge.png");
+    // left half opaque red, right half fully transparent black
+    image::RgbaImage::from_fn(40, 40, |x, _| {
+        if x < 20 {
+            image::Rgba([255, 0, 0, 255])
+        } else {
+            image::Rgba([0, 0, 0, 0])
+        }
+    })
+    .save(&input)
+    .unwrap();
+
+    susut()
+        .arg(&input)
+        .args(["--resize", "50%", "--force"])
+        .assert()
+        .success();
+
+    let out = image::open(dir.path().join("edge.min.png"))
+        .unwrap()
+        .to_rgba8();
+    assert_eq!(out.dimensions(), (20, 20));
+    // without premultiplied alpha the edge pixels would be dark red, not red
+    for p in out.pixels().filter(|p| p[3] > 8) {
+        assert!(p[0] >= 240, "pixel {p:?} lost its color");
+    }
+}

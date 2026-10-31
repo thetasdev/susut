@@ -83,17 +83,17 @@ Same machine and settings, mean ± standard deviation:
 | Task | susut | caesiumclt | rimage | Output size (susut / caesiumclt / rimage) |
 |---|---|---|---|---|
 | JPEG q80, full resolution (6 runs) | **3.21 ± 0.15 s** | 3.31 ± 0.11 s | 3.52 ± 0.07 s | 16.00 / 16.11 / 16.08 MB |
-| JPEG q80, long edge 2000 px (6 runs) | 1.46 ± 0.03 s | 1.59 ± 0.03 s | **0.85 ± 0.01 s** | 2.55 / 2.78 / 2.62 MB |
+| JPEG q80, long edge 2000 px (8 runs) | **0.82 ± 0.04 s** | 1.71 ± 0.12 s | 0.94 ± 0.03 s | 2.55 / 2.78 / 2.62 MB |
 | WebP q80, full resolution (3 runs) | **3.58 ± 0.08 s** | 5.91 ± 0.12 s | 4.85 ± 0.03 s | 11.46 MB, identical for all |
-| AVIF q80, long edge 1600 px (3 runs) | 4.34 ± 0.08 s | no AVIF | 4.54 ± 0.04 s | 1.217 / n/a / 1.218 MB |
+| AVIF q80, long edge 1600 px (3 runs) | **3.05 ± 0.03 s** | no AVIF | 3.79 ± 0.14 s | 1.217 / n/a / 1.218 MB |
 
 - Compression-only work behaves like the synthetic set: susut is level or ahead on JPEG and AVIF
   and ahead on WebP.
-- **Resizing is susut's weak spot.** With a resize step (45 MP photos down to 2000 px) rimage is
-  about 1.7 times faster, most likely because it uses a SIMD resizer while susut calls
-  `resize_exact` of the `image` crate. Speeding that up is on the to-do list; I have not
-  compared the visual quality of the three resize filters, so the size differences in that
-  row say nothing about quality.
+- **Resizing:** susut resizes with the SIMD Lanczos3 filter of `fast_image_resize`. Before that
+  change it was the slow part: the same 45 MP to 2000 px job took 1.46 s, about 1.7 times slower than
+  rimage (0.85 s); now it takes 0.82 s. The output is practically the same as before (the final
+  JPEGs differ by about 50 dB PSNR and 0.01% in size). I have not compared the visual quality of the
+  three tools' resize filters, so the size differences in that row say nothing about quality.
 - **Skip-if-bigger in action:** a twelfth photo (NASA `GSFC_20171208_Archive_e000746`,
   1920x1080, 178,192 bytes, already well compressed) grew to about 182 KB when re-encoded at q80.
   susut left it alone and reported "skipped"; caesiumclt wrote the bigger file (+2.3%).
@@ -103,14 +103,15 @@ Same machine and settings, mean ± standard deviation:
 
 | Binary | Size | gzip | Notes |
 |---|---|---|---|
-| susut, macOS arm64 | 3.93 MB | 1.84 MB | release profile: LTO, `strip`, `opt-level 3` |
-| susut, Linux aarch64 musl | 4.00 MB | 1.97 MB | static, no runtime dependencies |
-| susut, Linux aarch64 glibc | 4.07 MB | 1.92 MB | needs glibc, libgcc_s, libm |
+| susut, macOS arm64 | 5.95 MB | 2.31 MB | release profile: LTO, `strip`, `opt-level 3` |
+| susut, Linux aarch64 musl | 6.03 MB | 2.44 MB | static, no runtime dependencies |
+| susut, Linux aarch64 glibc | 6.03 MB | 2.39 MB | needs glibc, libgcc_s, libm |
 | caesiumclt 1.5.0, macOS arm64 | 6.26 MB | 2.46 MB | Homebrew build |
 | rimage 0.14.0, macOS arm64 | 9.00 MB | 4.35 MB | built here with default features (more codecs) |
 | jpegoptim 1.5.6, macOS arm64 | 76 KB | | dynamic, JPEG only |
 
-These are not like-for-like: the tools have different feature sets (rimage includes JPEG XL and
+susut was 3.9 MB (4.0 MB musl) before it adopted `fast_image_resize`, which adds SIMD code for
+RGB and RGBA images (about 2 MB). These are not like-for-like: the tools have different feature sets (rimage includes JPEG XL and
 more, caesiumclt includes GIF and TIFF) and were built with different settings. A cold
 `cargo build --release` of susut takes about 35 to 45 seconds on this machine.
 
