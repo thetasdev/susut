@@ -1,0 +1,5 @@
+[advisories]
+# paste is unmaintained but only a build-time proc-macro, pulled in by rav1e 0.8.1 (via ravif).
+# rav1e's main branch already migrated to pastey (xiph/rav1e#3430); drop this entry once a
+# rav1e release newer than 0.8.1 is out and `cargo update` removes paste.
+ignore = ["RUSTSEC-2024-0436"]

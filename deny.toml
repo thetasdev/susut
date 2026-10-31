@@ -1,0 +1,44 @@
+# cargo-deny: keeps the dependency tree free of copyleft licenses and known-bad crates.
+# Run locally with `cargo deny check`.
+
+[graph]
+targets = [
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "aarch64-pc-windows-msvc",
+]
+
+[licenses]
+# Only permissive licenses. GPL/AGPL/LGPL crates (e.g. imagequant) must not be added.
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "Zlib",
+    "Unlicense",
+    "CC0-1.0",
+    "IJG",
+    "NCSA",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.9
+
+[advisories]
+# Unmaintained crates are reported as warnings; vulnerabilities fail the check.
+unmaintained = "workspace"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
